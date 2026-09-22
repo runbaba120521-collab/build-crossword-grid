@@ -1,5 +1,7 @@
 # build-crossword-grid
 
+> 言葉と言葉が、思いがけず出会う場所。
+
 単語リスト（人名リストなど）から、日本語（カタカナ）／英語／日英混在に対応したクロスワード盤面と、そのままそのまま配布・印刷に使えるExcelワークブック（問題／解答／使用単語／配置評価の4シート）を自動生成するツールです。
 
 もとは ChatGPT / Codex 用のスキルとして tomoari "ふじてん" fujino 氏が作成したものを、GitHub上で単体配布できる形に移植しました。生成・検証ロジックはオリジナルのまま、Excel出力部分だけをChatGPT専用の内部ライブラリから公開ライブラリ（[exceljs](https://github.com/exceljs/exceljs)）に書き換えています。変更点の詳細は [CHANGELOG.md](./CHANGELOG.md) を参照してください。
