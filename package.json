@@ -1,0 +1,18 @@
+{
+  "name": "build-crossword-grid",
+  "version": "0.1.0",
+  "description": "Build validated fill-in crossword grids and Excel workbooks from a word or name list.",
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/generate_crossword.mjs --help >/dev/null 2>&1 || true"
+  },
+  "keywords": ["crossword", "puzzle", "excel", "generator"],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

@@ -1,0 +1,14 @@
+interface:
+  display_name: Build Crossword Grid
+  short_description: Build validated Japanese and English crossword grids
+  default_prompt: Use $build-crossword-grid to turn my uploaded word list into a validated
+    crossword workbook.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

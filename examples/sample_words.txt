@@ -1,0 +1,30 @@
+Actor
+Director
+Producer
+Screenwriter
+Screenplay
+Storyboard
+Cinematography
+Camera
+Lighting
+Soundtrack
+Editing
+Montage
+Dialogue
+Rehearsal
+Casting
+Costume
+Make-up
+Location
+Animation
+Documentary
+Close-up
+Wide shot
+Long take
+Voice-over
+Continuity
+Clapperboard
+Projection
+Premiere
+Subtitles
+Credits
