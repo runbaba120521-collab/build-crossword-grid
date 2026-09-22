@@ -8,7 +8,7 @@ description: Create validated fill-in crossword grids and Excel workbooks from u
 Create a deterministic, inspectable crossword workbook from an uploaded list. Preserve display text while using a normalized grid form. Treat the requested quality conditions as hard constraints unless the user explicitly relaxes them.
 
 > This repository is a portable, GitHub-hosted version of a skill originally
-> written by tomoari "ふじてん" fujino for ChatGPT/Codex. The workbook-building
+> written by 天気雨 (tenkiame) for ChatGPT/Codex. The workbook-building
 > script has been rewritten to use the public `exceljs` package instead of an
 > internal Codex-only library, and the grid generator now checks that the
 > whole board is a single connected component before calling a layout

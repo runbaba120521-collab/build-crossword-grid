@@ -4,7 +4,7 @@
 
 単語リスト（人名リストなど）から、日本語（カタカナ）／英語／日英混在に対応したクロスワード盤面と、そのままそのまま配布・印刷に使えるExcelワークブック（問題／解答／使用単語／配置評価の4シート）を自動生成するツールです。
 
-もとは ChatGPT / Codex 用のスキルとして tomoari "ふじてん" fujino 氏が作成したものを、GitHub上で単体配布できる形に移植しました。生成・検証ロジックはオリジナルのまま、Excel出力部分だけをChatGPT専用の内部ライブラリから公開ライブラリ（[exceljs](https://github.com/exceljs/exceljs)）に書き換えています。変更点の詳細は [CHANGELOG.md](./CHANGELOG.md) を参照してください。
+本スキルはもともと、天気雨（tenkiame）がChatGPT/Codex用に作成したものです。GitHub上で単体配布・実行できる形に移植し、Excel出力部分をChatGPT専用の内部ライブラリから公開ライブラリ（[exceljs](https://github.com/exceljs/exceljs)）に書き換え、盤面の連結性チェックを追加しています。変更点の詳細は [CHANGELOG.md](./CHANGELOG.md) を参照してください。
 
 ## できること
 
@@ -65,4 +65,4 @@ pip install -r requirements.txt
 
 ## ライセンス
 
-[MIT License](./LICENSE)（オリジナル作者：tomoari "ふじてん" fujino）
+[MIT License](./LICENSE)（作者：天気雨 tenkiame）
