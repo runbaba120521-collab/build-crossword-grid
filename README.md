@@ -2,7 +2,19 @@
 
 > 言葉と言葉が、思いがけず出会う場所。
 
-単語リスト（人名リストなど）から、日本語（カタカナ）／英語／日英混在に対応したクロスワード盤面と、そのままそのまま配布・印刷に使えるExcelワークブック（問題／解答／使用単語／配置評価の4シート）を自動生成するツールです。
+**Your words first. The grid comes second.**
+
+Most crossword generators start with a grid and fill it from a dictionary. build-crossword-grid works the other way around: you bring the word list — names, vocabulary, anything — and it searches for a connected grid where those words cross each other as often as possible. It handles Japanese katakana, English, or a mix of both, checks every layout with a separate validator, and exports a print-ready Excel workbook (puzzle, answer, word list, and quality report).
+
+The Japanese sample in [`examples/`](./examples/) places all 101 film-people names on one connected board, with no word left out.
+
+![Answer sheet generated from 101 film-people names](./docs/images/answer_ja.png)
+
+*Answer sheet from [`examples/sample_output_ja.xlsx`](./examples/sample_output_ja.xlsx). An English sample (30 film terms) is in [`sample_output_en.xlsx`](./examples/sample_output_en.xlsx).*
+
+---
+
+単語リスト（人名リストなど）から、日本語（カタカナ）／英語／日英混在に対応したクロスワード盤面と、そのまま配布・印刷に使えるExcelワークブック（問題／解答／使用単語／配置評価の4シート）を自動生成するツールです。
 
 本スキルはもともと、天気雨（tenkiame）がChatGPT/Codex用に作成したものです。GitHub上で単体配布・実行できる形に移植し、Excel出力部分をChatGPT専用の内部ライブラリから公開ライブラリ（[exceljs](https://github.com/exceljs/exceljs)）に書き換え、盤面の連結性チェックを追加しています。変更点の詳細は [CHANGELOG.md](./CHANGELOG.md) を参照してください。
 
