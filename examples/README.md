@@ -5,3 +5,5 @@
 - `sample_output_ja.xlsx` — 日本語（カタカナ）版の映画人名クロスワードのワークブック例。
 
 いずれも本ツールで生成したものです。手元で試す際の完成イメージとして参照してください。
+
+![English sample: answer sheet (30 film terms)](../docs/images/answer_en.png)
