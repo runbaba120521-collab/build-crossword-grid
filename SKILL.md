@@ -74,6 +74,8 @@ If the result is `best-effort`, retry in this order and stop as soon as the inde
 1. Run 300 attempts with 300 repair rounds (the ninth argument) and a new seed (seed + 1).
 2. If still incomplete, run 600 attempts with 300 repair rounds on at least three more seeds (seed + 2, seed + 3, seed + 4). Validate each result and keep the passing layout with the highest total quality score.
 
+The generator also uses attraction placement by default. An entry that shares characters with three or fewer other entries (for example トモダチ, whose ト, モ and ダ each appear in only one other word) is placed as soon as one of its partner entries is on the board, before the free space around that partner fills up. If an entry is still left unplaced, the generator tries two fixes: it moves a partner entry toward the outside of the board and crosses the unplaced entry with it, or it lifts at most two entries that block the path, places the unplaced entry and puts the lifted entries back elsewhere. A fix is kept only if more entries are placed, the board stays connected and no entry has zero crossings. Pass `--no-attract` only to compare with the earlier behavior.
+
 Repair rounds re-place entries that have only one crossing. They are the main lever when every entry is placed but the one-crossing count is above the budget, which is common for lists with many short words (three characters or fewer). Different seeds explore different starting layouts, so try several before reporting failure.
 
 ```bash
@@ -83,7 +85,18 @@ node "$SKILL_DIR/scripts/generate_crossword.mjs" \
 
 Report which seed and settings produced the accepted layout.
 
-For a list that fails preflight, explain that the shared-character graph cannot support the requested structure. Suggest replacing the named blockers, adding compatible entries, switching from strict to adaptive mode, or explicitly changing the list. Never allow a placed entry to have zero crossings.
+3. If every retry is still `best-effort` only because too many entries have exactly one crossing (all entries placed, none with zero crossings), offer to relax the one-crossing budget. Tell the user the automatic budget, how many one-crossing entries the best layout needed, and that the puzzle stays fully connected but some words will be joined to the grid at only one point. Rerun with `--single-budget N` only after the user agrees to a specific N, and validate again.
+
+```bash
+node "$SKILL_DIR/scripts/generate_crossword.mjs" \
+  NORMALIZED_JSON LAYOUT_JSON 600 SEED 60 60 adaptive 0.15 300 --single-budget N
+```
+
+   `--single-budget` works only in adaptive mode. It never allows zero-crossing entries. The layout, the validation report and the workbook all record that the budget was set by the user, next to the automatic value.
+
+4. Last resort only: if the user declines a larger budget, or entries still cannot be placed, say that the word list itself is the limit and ask whether the user wants to change it. Do not propose specific replacement or additional words unless the user asks for suggestions, so the list stays the user's own. You may report factual details, such as which entries could not be placed.
+
+For a list that fails preflight, explain that the shared-character graph cannot support the requested structure and name the blocking entries. Switching from strict to adaptive mode is an option to offer. Changing the list follows the same rule as step 4: ask, and suggest specific words only when the user asks. Never allow a placed entry to have zero crossings.
 
 ## Output workbook
 

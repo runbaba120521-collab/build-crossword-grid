@@ -1,21 +1,54 @@
 import fs from "node:fs/promises";
 
 
-const sourcePath = process.argv[2];
-const outputPath = process.argv[3];
-const requestedAttempts = Number(process.argv[4] || 120);
-const requestedSeed = Number(process.argv[5] || 20260921);
-const requestedMaxSize = Number(process.argv[6] || 60);
-const expandedMaxSize = Number(process.argv[7] || requestedMaxSize);
-const qualityPolicy = process.argv[8] || "adaptive";
-const shortWordThreshold = Number(process.argv[9] || 0.15);
-const repairRounds = Number(process.argv[10] || 50);
-const initialLayoutPath = process.argv[11];
+// 名前付きオプション（--single-budget N）を先に取り出し、残りを従来どおりの位置引数として読む。
+// --single-budget は「交差が1か所だけの語」を何語まで認めるかを、利用者が明示的に指定するためのもの。
+// 指定がなければ、これまでどおり自動で決めた許容数を使う。
+// --no-attract は誘引配置（置けなかった語のために、同じ文字を持つ語を外側へ動かす処理）を止める。
+// 比較や、以前の版と同じ探し方で試したいときに使う。
+const positionalArgs = [];
+let singleBudgetOverride = null;
+let attractionEnabled = true;
+for (let i = 2; i < process.argv.length; i++) {
+  const arg = process.argv[i];
+  if (arg === "--no-attract") {
+    attractionEnabled = false;
+  } else if (arg === "--single-budget") {
+    singleBudgetOverride = process.argv[++i];
+  } else if (arg.startsWith("--single-budget=")) {
+    singleBudgetOverride = arg.slice("--single-budget=".length);
+  } else {
+    positionalArgs.push(arg);
+  }
+}
+
+const sourcePath = positionalArgs[0];
+const outputPath = positionalArgs[1];
+const requestedAttempts = Number(positionalArgs[2] || 120);
+const requestedSeed = Number(positionalArgs[3] || 20260921);
+const requestedMaxSize = Number(positionalArgs[4] || 60);
+const expandedMaxSize = Number(positionalArgs[5] || requestedMaxSize);
+const qualityPolicy = positionalArgs[6] || "adaptive";
+const shortWordThreshold = Number(positionalArgs[7] || 0.15);
+const repairRounds = Number(positionalArgs[8] || 50);
+const initialLayoutPath = positionalArgs[9];
 
 
 if (!sourcePath || !outputPath) {
-  console.error("Usage: node generate_crossword.mjs normalized.json layout.json [attempts] [seed] [max-size] [expand-to] [strict|adaptive] [short-word-threshold] [repair-rounds] [initial-layout]");
+  console.error("Usage: node generate_crossword.mjs normalized.json layout.json [attempts] [seed] [max-size] [expand-to] [strict|adaptive] [short-word-threshold] [repair-rounds] [initial-layout] [--single-budget N] [--no-attract]");
   process.exit(2);
+}
+// --single-budget の値を確かめる：0以上の整数で、adaptive モードのときだけ使える。
+// 交差0の語はこの指定に関係なく、常に不合格のまま。
+if (singleBudgetOverride !== null) {
+  const parsed = Number(singleBudgetOverride);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error("--single-budget must be a non-negative integer.");
+  }
+  if (qualityPolicy !== "adaptive") {
+    throw new Error("--single-budget can only be used in adaptive mode.");
+  }
+  singleBudgetOverride = parsed;
 }
 if (![requestedAttempts, requestedSeed, requestedMaxSize, expandedMaxSize, repairRounds].every(Number.isFinite)) {
   throw new Error("Attempts, seed, and board sizes must be numeric.");
@@ -44,10 +77,14 @@ for (const word of words) word.chars = Array.from(word.board);
 const shortWordCount = words.filter(word => word.chars.length <= 3).length;
 const shortWordShare = shortWordCount / words.length;
 const adaptiveShortEnabled = qualityPolicy === "adaptive" && shortWordShare >= shortWordThreshold;
-const singleCrossingBudget = qualityPolicy === "strict" ? 0 : Math.min(
+// 自動で決める許容数（これまでと同じ計算）。
+const defaultSingleCrossingBudget = qualityPolicy === "strict" ? 0 : Math.min(
   Math.max(1, Math.ceil(words.length * 0.10)),
   adaptiveShortEnabled ? Math.max(1, Math.ceil(shortWordCount * 0.50)) : 1,
 );
+// 利用者が --single-budget を指定したときはその値を使い、どちらを使ったかを結果に残す。
+const singleCrossingBudget = singleBudgetOverride ?? defaultSingleCrossingBudget;
+const singleCrossingBudgetSource = singleBudgetOverride === null ? "default" : "user";
 function requiredCrossings() {
   return qualityPolicy === "strict" ? 2 : 1;
 }
@@ -63,6 +100,8 @@ function pointsForCrossings(count) {
 }
 
 
+// つながれる相手がこの数以下の語を「置きにくい語」として扱う
+const HARD_WORD_PARTNERS = 3;
 const charToWords = new Map();
 for (const word of words) {
   for (const ch of new Set(word.chars)) {
@@ -84,6 +123,12 @@ for (const word of words) {
   }
   word.degree = degree;
   word.weightedDegree = weightedDegree;
+  // つながれる相手（同じ文字を1つ以上持つほかの語）の数。少ない語は「置きにくい語」として、
+  // 作る途中で相手の語が置かれたらすぐに引き寄せて置く（誘引配置）。
+  const partners = new Set();
+  for (const ch of new Set(word.chars)) for (const id of charToWords.get(ch) ?? []) if (id !== word.id) partners.add(id);
+  word.partners = partners.size;
+  word.hard = word.partners <= HARD_WORD_PARTNERS;
   word.frequencyScore = word.chars.reduce((sum, ch) => sum + (charToWords.get(ch)?.length ?? 0), 0);
 }
 
@@ -162,6 +207,8 @@ if (!preflight.ok) {
     qualityPolicy,
     adaptiveShortEnabled,
     singleCrossingBudget,
+    singleCrossingBudgetSource,
+    defaultSingleCrossingBudget,
     shortWordShare,
     preflight,
     words: words.map(word => ({ no: word.id + 1, display: word.display, board: word.board })),
@@ -264,7 +311,7 @@ function validCandidate(state, word, r, c, dir) {
 }
 
 
-function candidatesFor(state, word) {
+function candidatesFor(state, word, limit = 48) {
   const found = new Map();
   for (let i = 0; i < word.chars.length; i++) {
     const ch = word.chars[i];
@@ -284,7 +331,7 @@ function candidatesFor(state, word) {
       }
     }
   }
-  return [...found.values()].sort((a, b) => b.score - a.score).slice(0, 48);
+  return [...found.values()].sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
 
@@ -547,6 +594,186 @@ function repairSingles(state, rng, maxPasses = 5) {
 }
 
 
+// ---- 誘引配置 -------------------------------------------------------------
+// 置けなかった語（ターゲット）と同じ文字を持つ、すでに置いた語（アンカー）を一度はずし、
+// 盤面の外側寄りの空いている場所へ置き直してから、そこにターゲットを交差させて置く。
+// 例：「トモダチ」が置けないとき、「ト」を持つ「コトバ」を盤面の端へ移し、
+//     その「ト」から「トモダチ」を伸ばす。
+// アンカーを動かしたことで交差が0になった語は、置き直しを試す。
+// 結果は、置けた語が増え、盤面が1つにつながり、交差0の語がないときだけ採用する。
+
+// 置き場所の候補を、盤面の中心から遠い（外側寄りの）順に並べるための値
+function outwardness(state, candidate, len) {
+  const centerR = (state.minR + state.maxR) / 2;
+  const centerC = (state.minC + state.maxC) / 2;
+  const midR = candidate.dir === "V" ? candidate.r + (len - 1) / 2 : candidate.r;
+  const midC = candidate.dir === "H" ? candidate.c + (len - 1) / 2 : candidate.c;
+  return Math.abs(midR - centerR) + Math.abs(midC - centerC);
+}
+
+// 交差が0になった語をはずして、別の場所に置き直す（置けなければはずしたまま）
+function reattachOrphans(state) {
+  const orphans = [...state.crossCounts.entries()].filter(([, count]) => count === 0).map(([id]) => id);
+  if (state.placements.size <= 1) return;
+  for (const id of orphans) {
+    removeWord(state, id);
+    const candidates = candidatesFor(state, words[id], 1);
+    if (candidates.length) place(state, words[id], candidates[0]);
+  }
+}
+
+// 1つのターゲットについて、アンカーを動かす案を全部試し、いちばん良い盤面を返す（なければ null）
+function attractOne(sourceState, target, maxAnchors = 12, maxPositions = 60) {
+  const before = metrics(sourceState);
+  const targetChars = new Set(target.chars);
+  // アンカー候補：ターゲットと同じ文字を持つ配置済みの語。交差の少ない語ほど動かしても影響が小さいので先に試す
+  const anchors = [...sourceState.placements.keys()]
+    .filter(id => words[id].chars.some(ch => targetChars.has(ch)))
+    .sort((a, b) => (sourceState.crossCounts.get(a) ?? 0) - (sourceState.crossCounts.get(b) ?? 0) || a - b)
+    .slice(0, maxAnchors);
+  let best = null;
+  let bestMetrics = null;
+  for (const anchorId of anchors) {
+    const base = cloneState(sourceState);
+    removeWord(base, anchorId);
+    if (base.placements.size === 0) continue;
+    const anchor = words[anchorId];
+    // アンカーの置き直し先：点数順の上位に限らず全候補を集め、外側寄りの順に試す
+    const positions = candidatesFor(base, anchor, Infinity)
+      .sort((a, b) => outwardness(base, b, anchor.chars.length) - outwardness(base, a, anchor.chars.length))
+      .slice(0, maxPositions);
+    for (const position of positions) {
+      const trial = cloneState(base);
+      place(trial, anchor, position);
+      const targetCandidates = candidatesFor(trial, target, 1);
+      if (!targetCandidates.length) continue;
+      place(trial, target, targetCandidates[0]);
+      reattachOrphans(trial);
+      const m = metrics(trial);
+      // 採用の条件：置けた語が増える／盤面が1つにつながっている／交差0の語がない
+      if (m.placed <= before.placed || !m.connected || m.zero > 0) continue;
+      if (betterMetrics(m, bestMetrics)) {
+        best = trial;
+        bestMetrics = m;
+      }
+    }
+  }
+  return best;
+}
+
+// 道をあける：ターゲットが同じ文字のマスで交差できる位置のうち、ほかの語がじゃまで置けない位置を探す。
+// じゃまな語（最大 maxBlockers 語）をはずしてターゲットを置き、はずした語は別の場所に置き直す。
+// 例：右端の「コトバ」の「ト」から「トモダチ」を下ろしたいが、すぐ横に「ジュギョウ」が
+//     接していて置けない → 「ジュギョウ」をはずして「トモダチ」を置き、「ジュギョウ」を置き直す。
+function blockersFor(state, target, r, c, dir) {
+  const len = target.chars.length;
+  const blockers = new Set();
+  let pivotCrossings = 0;
+  const addCell = cell => {
+    if (!cell) return;
+    if (cell.h !== null) blockers.add(cell.h);
+    if (cell.v !== null) blockers.add(cell.v);
+  };
+  // 語の前後のマスがふさがっていれば、その語はじゃま
+  addCell(state.grid.get(dir === "H" ? key(r, c - 1) : key(r - 1, c)));
+  addCell(state.grid.get(dir === "H" ? key(r, c + len) : key(r + len, c)));
+  for (let i = 0; i < len; i++) {
+    const rr = dir === "V" ? r + i : r;
+    const cc = dir === "H" ? c + i : c;
+    const cell = state.grid.get(key(rr, cc));
+    if (cell) {
+      // 同じ文字で、直交する向きに交差できるマスはそのまま使う（じゃまではない）
+      const perpendicularFree = dir === "H" ? (cell.h === null && cell.v !== null) : (cell.v === null && cell.h !== null);
+      if (cell.ch === target.chars[i] && perpendicularFree) {
+        pivotCrossings++;
+        continue;
+      }
+      addCell(cell);
+    } else if (dir === "H") {
+      addCell(state.grid.get(key(rr - 1, cc)));
+      addCell(state.grid.get(key(rr + 1, cc)));
+    } else {
+      addCell(state.grid.get(key(rr, cc - 1)));
+      addCell(state.grid.get(key(rr, cc + 1)));
+    }
+  }
+  return { blockers, pivotCrossings };
+}
+
+function evictForTarget(sourceState, target, maxBlockers = 2, maxTrials = 80) {
+  const before = metrics(sourceState);
+  // ターゲットの各文字について、同じ文字が置かれていて、直交方向がまだ空いているマスを起点にする
+  const trials = [];
+  const seen = new Set();
+  for (let i = 0; i < target.chars.length; i++) {
+    for (const cell of sourceState.charCells.get(target.chars[i]) ?? []) {
+      const options = [];
+      if (cell.h !== null && cell.v === null) options.push({ r: cell.r - i, c: cell.c, dir: "V" });
+      if (cell.v !== null && cell.h === null) options.push({ r: cell.r, c: cell.c - i, dir: "H" });
+      for (const option of options) {
+        const id = `${option.r},${option.c},${option.dir}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const { blockers, pivotCrossings } = blockersFor(sourceState, target, option.r, option.c, option.dir);
+        if (pivotCrossings === 0 || blockers.size === 0 || blockers.size > maxBlockers) continue;
+        trials.push({ ...option, blockers: [...blockers] });
+      }
+    }
+  }
+  // はずす語が少ない案から試す
+  trials.sort((a, b) => a.blockers.length - b.blockers.length);
+  let best = null;
+  let bestMetrics = null;
+  for (const trialPlan of trials.slice(0, maxTrials)) {
+    const trial = cloneState(sourceState);
+    for (const id of trialPlan.blockers) removeWord(trial, id);
+    const candidate = validCandidate(trial, target, trialPlan.r, trialPlan.c, trialPlan.dir);
+    if (!candidate) continue;
+    place(trial, target, candidate);
+    // はずした語を置き直す（交差の多い場所を優先）
+    for (const id of trialPlan.blockers) {
+      const replacement = candidatesFor(trial, words[id], 1);
+      if (replacement.length) place(trial, words[id], replacement[0]);
+    }
+    reattachOrphans(trial);
+    const m = metrics(trial);
+    // 採用の条件：置けた語が増える／盤面が1つにつながっている／交差0の語がない
+    if (m.placed <= before.placed || !m.connected || m.zero > 0) continue;
+    if (betterMetrics(m, bestMetrics)) {
+      best = trial;
+      bestMetrics = m;
+    }
+  }
+  return best;
+}
+
+// 置けなかった語がなくなるか、これ以上増やせなくなるまで、誘引配置をくり返す
+function attractUnplaced(sourceState) {
+  let state = sourceState;
+  let improved = true;
+  while (improved && state.placements.size < words.length) {
+    improved = false;
+    for (const target of words) {
+      if (state.placements.has(target.id)) continue;
+      // 先に、今の盤面のままで置けるかを確かめる（ほかの語を置いたことで場所が空いている場合がある）
+      const direct = candidatesFor(state, target, 1);
+      if (direct.length) {
+        place(state, target, direct[0]);
+        improved = true;
+        continue;
+      }
+      // まずアンカーを外側へ動かす案、だめなら道をふさぐ語をどける案を試す
+      const next = attractOne(state, target) ?? evictForTarget(state, target);
+      if (next) {
+        state = next;
+        improved = true;
+      }
+    }
+  }
+  return state;
+}
+
+
 function chooseWeighted(items, rng, temperature = 0.78) {
   if (items.length === 1) return items[0];
   const weights = items.map((_, i) => Math.pow(temperature, i));
@@ -645,6 +872,16 @@ function attempt(seed, limit) {
       options.push({ word, candidates, priority });
     }
     if (!options.length) break;
+    // 誘引配置（作る途中）：置きにくい語が置ける状態になったら、空きがなくなる前にすぐ置く。
+    // 置き場所の候補が少ない語から先に置く。
+    if (attractionEnabled) {
+      const urgent = options.filter(option => option.word.hard)
+        .sort((a, b) => a.candidates.length - b.candidates.length || a.word.id - b.word.id);
+      if (urgent.length) {
+        place(state, urgent[0].word, urgent[0].candidates[0]);
+        continue;
+      }
+    }
     const twoCrossOptions = state.placements.size >= 10
       ? options.filter(option => option.candidates[0].intersections >= targetCrossings(option.word))
       : [];
@@ -654,6 +891,10 @@ function attempt(seed, limit) {
     const topCandidates = option.candidates.slice(0, 10);
     const chosen = chooseWeighted(topCandidates, rng, 0.72);
     place(state, option.word, chosen);
+  }
+  // 置けずに残った語があれば、誘引配置で置けないか試す
+  if (attractionEnabled && state.placements.size < words.length) {
+    state = attractUnplaced(state);
   }
   if (state.placements.size === words.length) {
     repairSingles(state, rng, 6);
@@ -812,6 +1053,19 @@ if ((result.metrics.placed < words.length || result.metrics.belowMinimum > 0 || 
   const expanded = await search(expandedMaxSize, Math.max(40, Math.floor(requestedAttempts / 2)), requestedSeed + 1000003);
   if (betterMetrics(expanded.metrics, result.metrics)) result = expanded;
 }
+// 最終候補にまだ置けない語が残っていれば、もう一度だけ誘引配置を試し、
+// 全部置けたら交差の不足を直す処理（再配置）にかける
+if (attractionEnabled && result.metrics.placed < words.length) {
+  const attracted = attractUnplaced(cloneState(result.state));
+  const attractedMetrics = metrics(attracted);
+  if (betterMetrics(attractedMetrics, result.metrics)) {
+    result = { state: attracted, metrics: attractedMetrics };
+    console.log(JSON.stringify({ attraction: true, ...attractedMetrics }));
+    if (attractedMetrics.placed === words.length && (attractedMetrics.belowMinimum > 0 || !attractedMetrics.connected)) {
+      result = optimizeDeficits(result.state, repairRounds, requestedSeed + 3000017);
+    }
+  }
+}
 
 
 const state = result.state;
@@ -866,6 +1120,8 @@ const output = {
     qualityPolicy,
     adaptiveShortEnabled,
     singleCrossingBudget,
+    singleCrossingBudgetSource,
+    defaultSingleCrossingBudget,
     shortWordThreshold,
     shortWordShare,
     minimumCrossings: qualityPolicy === "strict" ? 2 : `at least 1 per entry; at most ${singleCrossingBudget} entries may have exactly 1`,

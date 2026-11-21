@@ -242,9 +242,15 @@ buildGridSheet(answer, labels.titles[1], true);
   borderRange(sheet, metricHeaderRow, 1, metricHeaderRow, 2, colors.white);
 
   const m = layout.metrics;
+  // 1交差の許容数を利用者が指定したときは、自動の値と並べて表示する
+  const budgetLabel = layout.rules.singleCrossingBudgetSource === "user"
+    ? (ja
+      ? `${layout.rules.singleCrossingBudget}（利用者が指定。自動では${layout.rules.defaultSingleCrossingBudget}）`
+      : `${layout.rules.singleCrossingBudget} (set by user; default ${layout.rules.defaultSingleCrossingBudget})`)
+    : layout.rules.singleCrossingBudget;
   const metricValues = [
     m.placed, layout.unplaced.length, `${m.width} × ${m.height}`, m.cells, m.intersections,
-    m.qualityPoints, m.multi, m.single, layout.rules.singleCrossingBudget, m.zero, m.belowMinimum, m.density,
+    m.qualityPoints, m.multi, m.single, budgetLabel, m.zero, m.belowMinimum, m.density,
     layout.placements.filter(p => p.dir === "H").length,
     layout.placements.filter(p => p.dir === "V").length,
     labels.connected, labels.pass,

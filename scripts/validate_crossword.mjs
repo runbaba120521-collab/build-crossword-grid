@@ -161,6 +161,8 @@ const report = {
   qualityPolicy,
   adaptiveShortEnabled: Boolean(data.rules?.adaptiveShortEnabled),
   singleCrossingBudget,
+  // 許容数が自動（default）か、利用者の指定（user）かを報告にも残す
+  singleCrossingBudgetSource: data.rules?.singleCrossingBudgetSource ?? "default",
   singleCrossingEntries,
   zeroCrossingEntries,
   qualityPoints,
