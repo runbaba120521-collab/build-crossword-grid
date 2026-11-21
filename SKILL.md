@@ -67,7 +67,21 @@ Do not use the generator's own metrics as proof. Require the independent validat
 
 ## Search and retry policy
 
-For roughly 20–120 entries, begin with 120 attempts. Compare at least 20 generated candidates before accepting a complete layout, and rank them by completeness, connectivity, policy compliance, total quality score, crossing coverage, intersections, then compactness. If the result is `best-effort`, retry with 300 attempts and a different seed. If still incomplete, retry once with 600 attempts. Increase the board limit only when the user permits expansion. Never change strict/adaptive mode or the one-crossing budget silently.
+For roughly 20–120 entries, begin with 120 attempts. Compare at least 20 generated candidates before accepting a complete layout, and rank them by completeness, connectivity, policy compliance, total quality score, crossing coverage, intersections, then compactness. Increase the board limit only when the user permits expansion. Never change strict/adaptive mode or the one-crossing budget silently.
+
+If the result is `best-effort`, retry in this order and stop as soon as the independent validator returns `"ok": true`:
+
+1. Run 300 attempts with 300 repair rounds (the ninth argument) and a new seed (seed + 1).
+2. If still incomplete, run 600 attempts with 300 repair rounds on at least three more seeds (seed + 2, seed + 3, seed + 4). Validate each result and keep the passing layout with the highest total quality score.
+
+Repair rounds re-place entries that have only one crossing. They are the main lever when every entry is placed but the one-crossing count is above the budget, which is common for lists with many short words (three characters or fewer). Different seeds explore different starting layouts, so try several before reporting failure.
+
+```bash
+node "$SKILL_DIR/scripts/generate_crossword.mjs" \
+  NORMALIZED_JSON LAYOUT_JSON 600 SEED 60 60 adaptive 0.15 300
+```
+
+Report which seed and settings produced the accepted layout.
 
 For a list that fails preflight, explain that the shared-character graph cannot support the requested structure. Suggest replacing the named blockers, adding compatible entries, switching from strict to adaptive mode, or explicitly changing the list. Never allow a placed entry to have zero crossings.
 

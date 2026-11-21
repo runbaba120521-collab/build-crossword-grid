@@ -1,6 +1,6 @@
 {
   "name": "build-crossword-grid",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build validated fill-in crossword grids and Excel workbooks from a word or name list.",
   "type": "module",
   "scripts": {
